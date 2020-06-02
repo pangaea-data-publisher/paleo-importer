@@ -31,3 +31,5 @@ downloads/P01.xml
 .idea/dataSources/2229a1f3-e00a-46bc-a884-a39529fd26b9/storage_v2/_src_/database/pangaea_db.Ko-1pA/schema/pg_catalog.0S1ZNQ.meta
 .idea/dataSources/2229a1f3-e00a-46bc-a884-a39529fd26b9/storage_v2/_src_/database/pangaea_db.Ko-1pA/schema/public.abK9xQ.meta
 logs/nerc_importer.log
+.idea/paleo_importer.iml
+*.meta

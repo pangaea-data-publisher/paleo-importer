@@ -23,35 +23,12 @@ def read_xml(terminology):
     collection_name = terminology['collection_name']
     try:
         head = requests.head(url)
-        if head.headers['Content-Type'] == 'application/rdf+xml':
-            filename = collection_name + '.xml'
-            local_folder = '/downloads/'
-            file_abs_path = os.getcwd() + local_folder + filename
+        if 'application/rdf+xml' in head.headers['Content-Type']:
             xml_content = None
-            while xml_content is None:
-                downloaded_files = os.listdir(os.getcwd() + local_folder)
-                config_ETag = read_config_ETag(config_file_name, collection_name)
-                #print('config_ETag: ',config_ETag) #"44b8821-5a21dd48a4b14;5a21dd496ed93"
-                # config_ETag=None if there is no corresponding ETag entry in .ini file
-                if config_ETag is not None \
-                        and filename in downloaded_files \
-                        and config_ETag == head.headers['ETag']:
-                    # if file was ever downloaded and is up-to-date
-                    # read previously downloaded file from folder
-                    try:
-                        with open(file_abs_path, 'rb') as f:
-                            xml_content = f.read()
-                    except FileNotFoundError as e:
-                        logger.debug(e)
-                        return None
-                else:
-                    # download the file
-                    req_main = requests.get(url)
-                    with open(file_abs_path, 'wb') as f:
-                        f.write(req_main.content)
-                    # write down the corresponding ETag of a collection into .ini file
-                    header_ETag = head.headers['ETag']
-                    add_config_ETag(config_file_name, collection_name, header_ETag)
+            # download the file
+            req_main = requests.get(url)
+            xml_content = req_main.content
+
 
         elif head.headers['Content-Type'] == 'text/xml;charset=UTF-8':
             # read xml response of NERC webpage
@@ -83,23 +60,34 @@ def read_xml(terminology):
     return root_main
 
 
-def xml_parser(root_main, terminologies_left, relation_types,semantic_uri):
+def xml_parser(root_main, terminologies_left, relation_types):
     """
     Takes root(ET) of a Collection e.g. 'http://vocab.nerc.ac.uk/collection/L05/current/accepted/'
     Returns pandas DataFrame with harvested fields (e.g.semantic_uri,name,etc.) for every member of the collection
     """
     data = []
-    members = root_main.findall('./' + skos + 'Collection' + skos + 'member')
+    D=dict()
+    subroot = root_main.findall('./' + skos + 'Concept' +"[@{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about='https://www.ncdc.noaa.gov/paleo-search/cvterms?termId=8']")[0]
+    # going down the tree to next narrower elements
+    subterms=subroot.findall('./' +  skos + 'narrower')
+    # if len(r_type_elements) != 0:
+    D['name'] = subroot.find('.'+ skos + 'prefLabel').text
+    D['description'] = subroot.find('.'+ skos + 'definition').text
+    D['uri'] = subroot.attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about']
+    D['datetime_last_harvest']=subroot.find('.'+ "{http://purl.org/dc/terms/}" + 'modified').text
 
+    # TODO :provide default value to D['deprecated']=
+    # TODO :provide default value to D['id_term_status']=
+    # TODO :provide default value to D['semantic_uri']=
     for member in members:
         D = dict()
-        D['datetime_last_harvest'] = member.find('.' + skos + 'Concept' + dc + 'date').text  # authoredOn
-        D['semantic_uri'] = str(member.find('.' + skos + 'Concept' + dc + 'identifier').text)
-        D['name'] = member.find('.' + skos + 'Concept' + skos + 'prefLabel').text
-        D['description'] = member.find('.' + skos + 'Concept' + skos + 'definition').text
-        D['uri'] = str(member.find('.' + skos + 'Concept').attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about'])
-        D['deprecated'] = member.find('.' + skos + 'Concept' + owl + 'deprecated').text
-        D['id_term_status'] = int(np.where(D['deprecated'] == 'false', id_term_status_accepted, id_term_status_not_accepted))  # important to have int intead of ndarray
+       # D['datetime_last_harvest'] = member.find('.' + skos + 'Concept' + dc + 'date').text  # authoredOn
+        # D['semantic_uri'] = str(member.find('.' + skos + 'Concept' + dc + 'identifier').text)
+        #D['name'] = member.find('.' + skos + 'Concept' + skos + 'prefLabel').text
+        #D['description'] = member.find('.' + skos + 'Concept' + skos + 'definition').text
+        #D['uri'] = str(member.find('.' + skos + 'Concept').attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about'])
+       # D['deprecated'] = member.find('.' + skos + 'Concept' + owl + 'deprecated').text
+        # D['id_term_status'] = int(np.where(D['deprecated'] == 'false', id_term_status_accepted, id_term_status_not_accepted))  # important to have int intead of ndarray
 
         ''' RELATED TERMS'''
         related_total = list()
@@ -156,7 +144,10 @@ def xml_parser(root_main, terminologies_left, relation_types,semantic_uri):
         D['related_uri'] = related_uri_list
         D['id_relation_type'] = id_relation_type_list
         # add semantic uri of subroot term in order to use it in get_related_semantic_uri function
-        D['subroot_semantic_uri']=semantic_uri
+        # D['subroot_semantic_uri']=semantic_uri
+
+        # DEFAULT VALUES
+        D['id_term_status']=id_term_status_accepted  # assumption for paleo thesaurus
 
         data.append(D)
     df = pd.DataFrame(data)
@@ -258,6 +249,7 @@ def main():
     df_list = []
     # terminology - dictionary containing terminology name, uri and relation_type
     for terminology in terminologies:
+        # if id_terminology from config file is in PSQL database
         if int(terminology['id_terminology']) in id_terminologies_SQL:
             terminologies_left = [x for x in terminologies_names if x not in terminologies_done]
             root_main = read_xml(terminology)
@@ -268,8 +260,8 @@ def main():
                 continue
             # semantic uri of a collection e.g. L05 - SDN:L05,
             # semantic uri is used in xml_parser,get_related_semantic_uri
-            semantic_uri = sqlExec.semantic_uri_from_uri(terminology['uri'])
-            df = xml_parser(root_main, terminologies_left, terminology['relation_types'],semantic_uri)
+            # semantic_uri = sqlExec.semantic_uri_from_uri(terminology['uri'])
+            df = xml_parser(root_main, terminologies_left, terminology['relation_types'])
             # lets assign the id_terminology (e.g. 21 or 22) chosen in .ini file for every terminology
             df = df.assign(id_terminology=terminology['id_terminology'])
             logger.info('TERMS SIZE: %s %s %s', str(terminology['collection_name']), ' ', str(len(df)))
@@ -370,7 +362,7 @@ if __name__ == '__main__':
     global id_user_created_updated
     global id_term_category
     # config_file_name = parser.parse_args().config_file
-    config_file_name ='E:/WORK/UNI_BREMEN/nerc-importer/config/import.ini'
+    config_file_name ='E:/WORK/UNI_BREMEN/paleo_importer/paleo_importer/config/import.ini'
     config.read(config_file_name)
     log_config_file = config['INPUT']['log_config_file']
     has_broader_term_pk = int(config['INPUT']['has_broader_term_pk'])
