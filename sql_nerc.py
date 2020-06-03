@@ -62,9 +62,27 @@ class SQLExecutor(SQLConnector):
         return id_terminologies
 
 
+    def get_terminology_uri(self,id_terminology):
+        con = self.create_db_connection()
+        cursor = con.cursor()
+        sql_command = "SELECT uri FROM public.terminology where id_terminology={}".format(id_terminology)
+        try:
+            cursor.execute(sql_command)
+            fetched_items = cursor.fetchall()
+            terminology_uri = fetched_items[0][0]
+        except psycopg2.DatabaseError as error:
+            self.logger.debug(error)
+        finally:
+            if con is not None:
+                cursor.close()
+                con.close()
+
+        return terminology_uri
+
+
     def semantic_uri_from_uri(self,uri):
         """
-        query semantic uri from uri.
+        query semantic uri from uri. (from term table)
         Use in xml_parser to get semantic_uri's of the
         corresopnding collections.
         Example of query:
@@ -78,6 +96,31 @@ class SQLExecutor(SQLConnector):
             cursor.execute(sql_command)
             fetched_items = cursor.fetchall()
             semantic_uri=fetched_items[0][0]
+        except psycopg2.DatabaseError as error:
+            self.logger.debug(error)
+        finally:
+            if con is not None:
+                cursor.close()
+                con.close()
+
+        return semantic_uri
+
+    def semantic_uri_from_terminology(self, uri):
+        """
+        query semantic uri from uri (from terminology table).
+        Use in xml_parser to get semantic_uri's of the
+        corresopnding collections.
+        Example of query:
+            select semantic_uri from public.term
+            where uri='http://vocab.nerc.ac.uk/collection/L05/current/'
+        """
+        con = self.create_db_connection()
+        cursor = con.cursor()
+        sql_command = "SELECT abbreviation FROM public.terminology where id_terminology='{}'".format(uri)
+        try:
+            cursor.execute(sql_command)
+            fetched_items = cursor.fetchall()
+            semantic_uri = fetched_items[0][0]
         except psycopg2.DatabaseError as error:
             self.logger.debug(error)
         finally:

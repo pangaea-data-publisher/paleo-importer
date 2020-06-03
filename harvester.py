@@ -59,35 +59,86 @@ def read_xml(terminology):
 
     return root_main
 
-
-def xml_parser(root_main, terminologies_left, relation_types):
+def follow_the_branch(lower_branch,root_main):
     """
-    Takes root(ET) of a Collection e.g. 'http://vocab.nerc.ac.uk/collection/L05/current/accepted/'
+    :param lower_branch:ET element close to the root
+    :return:list of upper branches - ET elements further away from the root
+    return: None if there no more 'narrower' elements to lower branch
+    """
+    subterms=lower_branch.findall('./' +  skos + 'narrower')
+    # if list of ET elements is not empty
+    if subterms:
+        upper_branches=[]
+        for subterm in subterms:
+            next_uri=subterm.attrib[rdf[1:] + 'resource']
+            next_address='./' + skos + 'Concept' + "[@" + rdf[1:] + "about=" + "'{}']".format(next_uri)
+            next_element = root_main.findall(next_address)[0]
+            upper_branches.append(next_element)
+
+        return upper_branches
+    else:
+        return None
+
+
+def follow_the_tree(subroot_term,root_main):
+    """
+    :param root_main: contains all Paleo collections, including "method"
+    :param subroot_term: "method" collection
+    :return:all elements-children of  the subroot term
+            \\                   root term
+        \\      \\               lower branch
+      \\  \\       \\  \\        upper branch
+    \\\    \\\      \\\  \       highest_branch
+    """
+
+    lower_branch=subroot_term # for first iteration
+    elements_array=[]
+    highest_branch_reached=False
+    while highest_branch_reached is not True:
+        upper_branches = []
+        if type(lower_branch)==list:
+            # lower_branch=[ET1,ET2,...,ETN]
+            if len(lower_branch)!=0:
+                for element in lower_branch:
+                    upper_branch=follow_the_branch(element,root_main)
+                    if upper_branch is not None:  # if not empty response
+                        upper_branches=upper_branches+upper_branch # concatenate two lists
+
+        # if its just one element lower_branch=ET (elmentTree)
+        else:
+            upper_branches = follow_the_branch(lower_branch,root_main)
+
+        # if upper_branches list is not empty or None
+        if upper_branches:
+            elements_array = elements_array + upper_branches
+            lower_branch = upper_branches
+        else:
+            # if upper_branches list is empty or None
+            highest_branch_reached=True
+    return elements_array
+
+
+
+
+def xml_parser(root_main, terminologies_left, relation_types,terminology_uri,semantic_uri):
+    """
+    Takes root(ET) of a Collection terminology_uri e.g. terminology_uri='https://www.ncdc.noaa.gov/paleo-search/cvterms?termId=8
     Returns pandas DataFrame with harvested fields (e.g.semantic_uri,name,etc.) for every member of the collection
     """
-    data = []
-    D=dict()
-    subroot = root_main.findall('./' + skos + 'Concept' +"[@{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about='https://www.ncdc.noaa.gov/paleo-search/cvterms?termId=8']")[0]
-    # going down the tree to next narrower elements
-    subterms=subroot.findall('./' +  skos + 'narrower')
-    # if len(r_type_elements) != 0:
-    D['name'] = subroot.find('.'+ skos + 'prefLabel').text
-    D['description'] = subroot.find('.'+ skos + 'definition').text
-    D['uri'] = subroot.attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about']
-    D['datetime_last_harvest']=subroot.find('.'+ "{http://purl.org/dc/terms/}" + 'modified').text
 
-    # TODO :provide default value to D['deprecated']=
-    # TODO :provide default value to D['id_term_status']=
-    # TODO :provide default value to D['semantic_uri']=
+    data = []
+
+    root_address = './' + skos + 'Concept' + "[@" + rdf[1:] + "about=" + "'{}']".format(terminology_uri)
+    subroot = root_main.findall(root_address)[0]  # method collection ET element
+    members = follow_the_tree(subroot,root_main)
+
     for member in members:
         D = dict()
-       # D['datetime_last_harvest'] = member.find('.' + skos + 'Concept' + dc + 'date').text  # authoredOn
-        # D['semantic_uri'] = str(member.find('.' + skos + 'Concept' + dc + 'identifier').text)
-        #D['name'] = member.find('.' + skos + 'Concept' + skos + 'prefLabel').text
-        #D['description'] = member.find('.' + skos + 'Concept' + skos + 'definition').text
-        #D['uri'] = str(member.find('.' + skos + 'Concept').attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about'])
-       # D['deprecated'] = member.find('.' + skos + 'Concept' + owl + 'deprecated').text
-        # D['id_term_status'] = int(np.where(D['deprecated'] == 'false', id_term_status_accepted, id_term_status_not_accepted))  # important to have int intead of ndarray
+        D['name'] = member.find('.' + skos + 'prefLabel').text
+        D['description'] = member.find('.' + skos + 'definition').text
+        D['uri'] = member.attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about']
+        D['datetime_last_harvest'] = member.find('.' + "{http://purl.org/dc/terms/}" + 'modified').text
+
 
         ''' RELATED TERMS'''
         related_total = list()
@@ -98,61 +149,35 @@ def xml_parser(root_main, terminologies_left, relation_types):
         if type(relation_types[0]) == str:
             # filtering out entries by type of relation
             for r_type in relation_types:
-                r_type_elements = member.findall('.' + skos + 'Concept' + skos + r_type)
+                r_type_elements = member.findall('./' + skos + r_type)
                 if len(r_type_elements) != 0:
                     related_total.extend(r_type_elements)
             # filtering out entries by collection name (from names in .ini)
             for element in related_total:
                 related_uri = element.attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}resource']
-                if 'broader' in element.tag \
-                        and any('collection/' + name in related_uri for name in
-                                terminologies_names):  # if related_uri contains one of the collections names (L05,L22,...)
+                if 'broader' in element.tag: #TODO: make it universal for any possible type of relation
                     related_uri_list.append(related_uri)
                     id_relation_type_list.append(has_broader_term_pk)
                 # if related to the collections previously not read (unique bidirectional relation)
-                elif 'related' in element.tag \
-                        and any('collection/' + name in related_uri for name in terminologies_left):
+                elif 'related' in element.tag:
                     related_uri_list.append(related_uri)
                     id_relation_type_list.append(is_related_to_pk)
 
-        #  e.g. relation_types[0]={"broader":["P01"],"related":["P01","L05","L22"]}
-        elif type(relation_types[0]) == dict:
-            for r_type in list(relation_types[0].keys()):
-                r_type_elements = member.findall('.' + skos + 'Concept' + skos + r_type)
-                r_type_collections = relation_types[0][r_type]  # e.g. ["P01","L05","L22"] for related
-                for element in r_type_elements:
-                    related_uri = element.attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}resource']
-                    # e.g. related_uri=http://vocab.nerc.ac.uk/collection/P01/current/SESASCFX/
-                    # e.g. terminologies_names=['collection/L05', 'collection/L22', 'collection/P01']
-                    # e.g. r_type_collections=["P01"] for r_type 'broader'
-                    if 'broader' in element.tag:
-                        names_broader = set.intersection(set(r_type_collections), set(terminologies_names))
-                        # e.g. intersection of ["P01","L05","L22"] and ["P01"] is ["P01"]
-                        if any('collection/' + name in related_uri for name in names_broader):
-                            related_uri_list.append(related_uri)
-                            id_relation_type_list.append(has_broader_term_pk)
-                    elif 'related' in element.tag:
-                        '''choose elements related to the terminology not yet parsed'''
-                        names_related = set.intersection(set(r_type_collections), set(terminologies_left))
-                        # e.g. intersection of terminologies_left=["P01","L05"] and r_type_collections=["P01"] is []
-                        if any('collection/' + name in related_uri for name in names_related):
-                            related_uri_list.append(related_uri)
-                            id_relation_type_list.append(is_related_to_pk)
         else:
             logger.debug('config file error -- relation_types entered incorrectly')
 
         D['related_uri'] = related_uri_list
         D['id_relation_type'] = id_relation_type_list
         # add semantic uri of subroot term in order to use it in get_related_semantic_uri function
-        # D['subroot_semantic_uri']=semantic_uri
+        D['subroot_semantic_uri']=semantic_uri
 
         # DEFAULT VALUES
         D['id_term_status']=id_term_status_accepted  # assumption for paleo thesaurus
-
+        D['semantic_uri']=D['uri']
         data.append(D)
+
     df = pd.DataFrame(data)
     df['datetime_last_harvest'] = pd.to_datetime(df['datetime_last_harvest'])  # convert to TimeStamp
-    del df['deprecated']  # deleting not up to date entries
 
     return df
 
@@ -255,13 +280,16 @@ def main():
             root_main = read_xml(terminology)
             # if root_main returned None (not read properly)
             # skip terminology
+
             if not root_main:
                 logger.debug("Collection {} skipped, since not read properly".format(terminology['collection_name']))
                 continue
             # semantic uri of a collection e.g. L05 - SDN:L05,
-            # semantic uri is used in xml_parser,get_related_semantic_uri
-            # semantic_uri = sqlExec.semantic_uri_from_uri(terminology['uri'])
-            df = xml_parser(root_main, terminologies_left, terminology['relation_types'])
+            # get semantic uri of the collection from terminology table
+            semantic_uri = sqlExec.semantic_uri_from_terminology(terminology['id_terminology'])
+            # get collection uri from terminology table
+            terminology_uri = sqlExec.get_terminology_uri(terminology['id_terminology'])
+            df = xml_parser(root_main, terminologies_left, terminology['relation_types'],terminology_uri,semantic_uri)
             # lets assign the id_terminology (e.g. 21 or 22) chosen in .ini file for every terminology
             df = df.assign(id_terminology=terminology['id_terminology'])
             logger.info('TERMS SIZE: %s %s %s', str(terminology['collection_name']), ' ', str(len(df)))
