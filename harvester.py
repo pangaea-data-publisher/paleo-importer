@@ -59,6 +59,7 @@ def read_xml(terminology):
 
     return root_main
 
+
 def follow_the_branch(lower_branch,root_main):
     """
     :param lower_branch:ET element close to the root
@@ -92,7 +93,7 @@ def follow_the_tree(subroot_term,root_main):
     """
 
     lower_branch=subroot_term # for first iteration
-    elements_array=[]
+    elements_array=[lower_branch]  #include top element - root_term
     highest_branch_reached=False
     while highest_branch_reached is not True:
         upper_branches = []
@@ -116,8 +117,6 @@ def follow_the_tree(subroot_term,root_main):
             # if upper_branches list is empty or None
             highest_branch_reached=True
     return elements_array
-
-
 
 
 def xml_parser(root_main, terminologies_left, relation_types,terminology_uri,semantic_uri):
