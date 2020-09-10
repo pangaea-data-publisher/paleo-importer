@@ -1,4 +1,4 @@
-# Paleoenvironmental Standard Terms (PaST) thesaurus Importer
+# Paleoenvironmental Standard Terms (PaST) Thesaurus Importer
 A python script that imports 'method' controlled vocabularies from https://www.ncdc.noaa.gov/paleo-search/cvterms, and then insert/update the terms into the pangaea database.
 
 ## Usage
