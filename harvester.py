@@ -28,8 +28,6 @@ def read_xml(terminology):
             # download the file
             req_main = requests.get(url)
             xml_content = req_main.content
-
-
         elif head.headers['Content-Type'] == 'text/xml;charset=UTF-8':
             # read xml response of NERC webpage
             try:
@@ -124,19 +122,19 @@ def xml_parser(root_main, terminologies_left, relation_types,terminology_uri,sem
     Takes root(ET) of a Collection terminology_uri e.g. terminology_uri='https://www.ncdc.noaa.gov/paleo-search/cvterms?termId=8
     Returns pandas DataFrame with harvested fields (e.g.semantic_uri,name,etc.) for every member of the collection
     """
-
     data = []
     root_address = './' + skos + 'Concept' + "[@" + rdf[1:] + "about=" + "'{}']".format(terminology_uri)
     subroot = root_main.findall(root_address)[0]  # method collection ET element
     members = follow_the_tree(subroot,root_main)
-
     for member in members:
         D = dict()
         D['name'] = member.find('.' + skos + 'prefLabel').text
         D['description'] = member.find('.' + skos + 'definition').text
         D['uri'] = member.attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about']
-        D['datetime_last_harvest'] = member.find('.' + "{http://purl.org/dc/terms/}" + 'modified').text
-
+        if member.find('.' + '{http://purl.org/dc/terms/}' + 'modified'):
+            D['datetime_last_harvest'] = member.find('.' + '{http://purl.org/dc/terms/}' + 'modified').text
+        else: #use created date if modified date is unavailable
+            D['datetime_last_harvest'] = member.find('.' + '{http://purl.org/dc/terms/}' + 'created').text
 
         ''' RELATED TERMS'''
         related_total = list()
@@ -287,6 +285,7 @@ def main():
             semantic_uri = sqlExec.semantic_uri_from_terminology(terminology['id_terminology'])
             # get collection uri from terminology table
             terminology_uri = sqlExec.get_terminology_uri(terminology['id_terminology'])
+
             df = xml_parser(root_main, terminologies_left, terminology['relation_types'],terminology_uri,semantic_uri)
             # lets assign the id_terminology (e.g. 21 or 22) chosen in .ini file for every terminology
             df = df.assign(id_terminology=terminology['id_terminology'])
@@ -402,7 +401,7 @@ if __name__ == '__main__':
 
     logging.config.fileConfig(log_config_file)
     logger = logging.getLogger(__name__)
-    logger.debug("Starting NERC harvester...")
+    logger.debug("Starting PaST harvester...")
     a = datetime.datetime.now()
     main()
     b = datetime.datetime.now()
