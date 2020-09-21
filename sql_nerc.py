@@ -286,7 +286,7 @@ class DframeManipulator(SQLConnector):
         # assign deafult values to columns
         
         #df=df.assign(abbreviation="")
-        df=df.assign(datetime_created=df.datetime_last_harvest) #   
+        #df=df.assign(datetime_created=df.datetime_last_harvest) #
         df=df.assign(comment=None) ## convert it to NULL for SQL ?
         df=df.assign(datetime_updated=pd.to_datetime(datetime.datetime.now())) # assign current time
         #df=df.assign(master=0)
