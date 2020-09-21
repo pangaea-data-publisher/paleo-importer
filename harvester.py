@@ -126,7 +126,6 @@ def xml_parser(root_main, terminologies_left, relation_types,terminology_uri,sem
     """
 
     data = []
-
     root_address = './' + skos + 'Concept' + "[@" + rdf[1:] + "about=" + "'{}']".format(terminology_uri)
     subroot = root_main.findall(root_address)[0]  # method collection ET element
     members = follow_the_tree(subroot,root_main)
@@ -389,7 +388,9 @@ if __name__ == '__main__':
     global id_user_created_updated
     global id_term_category
     # config_file_name = parser.parse_args().config_file
-    config_file_name ='E:/WORK/UNI_BREMEN/paleo_importer/paleo_importer/config/import.ini'
+    #config_file_name ='E:/WORK/UNI_BREMEN/paleo_importer/paleo_importer/config/import.ini'
+    my_path = os.path.abspath(os.path.dirname(__file__))
+    config_file_name = os.path.join(my_path, 'config', 'import.ini')
     config.read(config_file_name)
     log_config_file = config['INPUT']['log_config_file']
     has_broader_term_pk = int(config['INPUT']['has_broader_term_pk'])
