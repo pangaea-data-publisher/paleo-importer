@@ -28,6 +28,8 @@ def read_xml(terminology):
             # download the file
             req_main = requests.get(url)
             xml_content = req_main.content
+            with open('past-thesaurus.xml', 'w') as f:
+                f.write(req_main.text)
         elif head.headers['Content-Type'] == 'text/xml;charset=UTF-8':
             # read xml response of NERC webpage
             try:
@@ -126,15 +128,18 @@ def xml_parser(root_main, terminologies_left, relation_types,terminology_uri,sem
     root_address = './' + skos + 'Concept' + "[@" + rdf[1:] + "about=" + "'{}']".format(terminology_uri)
     subroot = root_main.findall(root_address)[0]  # method collection ET element
     members = follow_the_tree(subroot,root_main)
+
     for member in members:
         D = dict()
-        D['name'] = member.find('.' + skos + 'prefLabel').text
-        D['description'] = member.find('.' + skos + 'definition').text
+        D['name'] = member.find('./' + skos + 'prefLabel').text
+        D['description'] = member.find('./' + skos + 'definition').text
         D['uri'] = member.attrib['{http://www.w3.org/1999/02/22-rdf-syntax-ns#}about']
-        if member.find('.' + '{http://purl.org/dc/terms/}' + 'modified'):
-            D['datetime_last_harvest'] = member.find('.' + '{http://purl.org/dc/terms/}' + 'modified').text
-        else: #use created date if modified date is unavailable
-            D['datetime_last_harvest'] = member.find('.' + '{http://purl.org/dc/terms/}' + 'created').text
+        D['datetime_created'] = member.find('./' + '{http://purl.org/dc/terms/}' + 'created').text
+        modified = member.find('.//{http://purl.org/dc/terms/}modified')
+        if modified is not None:
+            D['datetime_last_harvest'] = modified.text
+        else: #use created datetieme if modified time not available
+            D['datetime_last_harvest'] = D['datetime_created']
 
         ''' RELATED TERMS'''
         related_total = list()
@@ -173,8 +178,8 @@ def xml_parser(root_main, terminologies_left, relation_types,terminology_uri,sem
         data.append(D)
 
     df = pd.DataFrame(data)
+    df['datetime_created'] = pd.to_datetime(df['datetime_created'])  # convert to TimeStamp
     df['datetime_last_harvest'] = pd.to_datetime(df['datetime_last_harvest'])  # convert to TimeStamp
-
     return df
 
 
