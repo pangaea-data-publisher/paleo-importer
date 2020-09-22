@@ -1,17 +1,15 @@
 import argparse
-
-import requests
 import configparser
-from xml.etree import ElementTree as ET
-import pandas as pd
-import numpy as np
-import logging.config
 import datetime
 import json
-import os
+import logging.config
+from xml.etree import ElementTree as ET
+
+import pandas as pd
+import requests
+
 import sql_nerc
-import configparser as ConfigParser
-#from requests.adapters import HTTPAdapter
+
 
 def read_xml(terminology):
     '''
@@ -243,8 +241,8 @@ def get_config_params():
                         credentials for the PostgreSQL database
       terminologies: JSON string conatining parameteres of terminologies
       """
-    configParser = configparser.ConfigParser()
-    configParser.read(config_file_name)
+    #configParser = configparser.ConfigParser()
+    #configParser.read(config_file_name)
     # READING INI FILE
     # db params
     db_params = dict()
@@ -380,29 +378,30 @@ if __name__ == '__main__':
     pav = "/{http://purl.org/pav/}"
     owl = "/{http://www.w3.org/2002/07/owl#}"
 
-    # parser = argparse.ArgumentParser()
-    # parser.add_argument("-c", action="store", help='specify the path of the config file',
-    #                     dest="config_file", required=True)
-    config = ConfigParser.ConfigParser()
-    global config_file_name
+    global configParser
     global has_broader_term_pk
     global is_related_to_pk
     global id_term_status_accepted
     global id_term_status_not_accepted
     global id_user_created_updated
     global id_term_category
-    # config_file_name = parser.parse_args().config_file
-    #config_file_name ='E:/WORK/UNI_BREMEN/paleo_importer/paleo_importer/config/import.ini'
-    my_path = os.path.abspath(os.path.dirname(__file__))
-    config_file_name = os.path.join(my_path, 'config', 'import.ini')
-    config.read(config_file_name)
-    log_config_file = config['INPUT']['log_config_file']
-    has_broader_term_pk = int(config['INPUT']['has_broader_term_pk'])
-    is_related_to_pk = int(config['INPUT']['is_related_to_pk'])
-    id_term_status_accepted = int(config['INPUT']['id_term_status_accepted'])
-    id_term_status_not_accepted = int(config['INPUT']['id_term_status_not_accepted'])
-    id_user_created_updated = int(config['INPUT']['id_user_created_updated'])
-    id_term_category = int(config['INPUT']['id_term_category'])
+
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--config", required=True, help="Path to import.ini config file")
+    args = parser.parse_args()
+    configParser = configparser.ConfigParser()
+    configParser.read(args.config)
+
+    #my_path = os.path.abspath(os.path.dirname(__file__))
+    #config_file_name = os.path.join(my_path, 'config', 'import.ini')
+    #config.read(config_file_name)
+    log_config_file = configParser['INPUT']['log_config_file']
+    has_broader_term_pk = int(configParser['INPUT']['has_broader_term_pk'])
+    is_related_to_pk = int(configParser['INPUT']['is_related_to_pk'])
+    id_term_status_accepted = int(configParser['INPUT']['id_term_status_accepted'])
+    id_term_status_not_accepted = int(configParser['INPUT']['id_term_status_not_accepted'])
+    id_user_created_updated = int(configParser['INPUT']['id_user_created_updated'])
+    id_term_category = int(configParser['INPUT']['id_term_category'])
 
     logging.config.fileConfig(log_config_file)
     logger = logging.getLogger(__name__)
