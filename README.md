@@ -5,5 +5,5 @@ A python script that imports 'method' controlled vocabularies from https://www.n
 To run the importer, please execute the following from the root directory. Please update config/import_template.ini with the pangaea database settings (username, password, host, port).
 ```
 pip3 install -r requirements.txt
-python3 harvester.py -c <path_to_Config_file>
+python3 harvester.py -c <path_to_config_file>
 ```
