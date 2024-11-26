@@ -271,9 +271,10 @@ class DframeManipulator(SQLConnector):
     def df_shaper(self,df,id_term_category,id_user_created,id_user_updated, df_pang=None):
         # Check the last id_term in SQL db
         if df_pang is not None:   # if UPDATE id_terms stay the same
-            uri_list=list(df.semantic_uri)  # list of sematic_uri's of the df_update dataframe
-            mask = df_pang.semantic_uri.apply(lambda x: x in uri_list )   # corresponding id_terms's from df_from_pangea (PANGAEA dataframe to be updated)
-            df=df.assign(id_term=df_pang[mask].id_term.values)
+            #uri_list=list(df.semantic_uri)  # list of sematic_uri's of the df_update dataframe
+            #mask = df_pang.semantic_uri.apply(lambda x: x in uri_list )   # corresponding id_terms's from df_from_pangea (PANGAEA dataframe to be updated)
+            #df=df.assign(id_term=df_pang[mask].id_term.values)
+            df = pd.merge(df_pang[['semantic_uri','id_term']], df, on='semantic_uri', how = 'right')
         else: # if INSERT generate new id_term's 
             con=self.create_db_connection()
             cursor=con.cursor()
